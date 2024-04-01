@@ -26,7 +26,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from vision_msgs.msg import Classification2D, ObjectHypothesis, ObjectHypothesisWithPose, BoundingBox2D, Detection2D, Detection2DArray
+from vision_msgs.msg import Classification, ObjectHypothesis, ObjectHypothesisWithPose, BoundingBox2D, Detection2D, Detection2DArray
 
 import os
 import sys
@@ -109,7 +109,7 @@ class InferencePublisher(Node):
                     # If object is a car (class ID 0), perform attribute classification
                     if obj_meta.class_id == 0 and l_classifier is not None:
                         # Creating and publishing message with output of classification inference
-                        msg2 = Classification2D()
+                        msg2 = Classification()
 
                         while l_classifier is not None:
                             result = ObjectHypothesis()
@@ -215,7 +215,7 @@ class InferencePublisher(Node):
         param_ip_src = self.get_parameter('input_source').value
         
         self.publisher_detection = self.create_publisher(Detection2DArray, 'infer_detection', 10)
-        self.publisher_classification = self.create_publisher(Classification2D, 'infer_classification', 10)
+        self.publisher_classification = self.create_publisher(Classification, 'infer_classification', 10)
 
         # Standard GStreamer initialization
         GObject.threads_init()

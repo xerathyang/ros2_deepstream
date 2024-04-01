@@ -26,7 +26,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
-from vision_msgs.msg import Classification2D
+from vision_msgs.msg import Classification
 
 import cv2
 import numpy as np
@@ -35,7 +35,7 @@ class MinimalSubscriber(Node):
     def __init__(self):
         super().__init__('minimal_subscriber')
         self.subscription = self.create_subscription(
-            Classification2D,
+            Classification,
             'multi_classification',
             self.listener_callback,
             10)

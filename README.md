@@ -128,11 +128,11 @@ Message received by the node subscribing to topic **infer_classification**:
 
 `[vision_msgs.msg.ObjectHypothesis(id='blue', score=0.9575958847999573), vision_msgs.msg.ObjectHypothesis(id='bmw', score=0.6080179214477539), vision_msgs.msg.ObjectHypothesis(id='sedan', score=0.8021238446235657)]`
 
-The **infer_classification** topic publishes messages in the `vision_msgs` Classification2D type. These messages contain information about the color, make and type of detected cars alongwith their confidence scores.
+The **infer_classification** topic publishes messages in the `vision_msgs` Classification type. These messages contain information about the color, make and type of detected cars alongwith their confidence scores.
 
 ## Multi input publisher node
 
-For applications that take videos from multiple input sources, we have provided node **multi_stream**. This takes multiple H.264/H.265 video streams as input and performs inference (detection and classification). Output is published on topics **multi_detection** and **multi_classification** in Detection2DArray and Classification2D types respectively. 
+For applications that take videos from multiple input sources, we have provided node **multi_stream**. This takes multiple H.264/H.265 video streams as input and performs inference (detection and classification). Output is published on topics **multi_detection** and **multi_classification** in Detection2DArray and Classification types respectively. 
 
 Run the multi_stream publisher using the following command (check that workspace is sourced by following steps 3 and 4 above). This command will take some time to start and print log messages to the console.
 
