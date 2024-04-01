@@ -5,12 +5,9 @@
 ARG BASE_IMAGE=dustynv/ros:humble-desktop-l4t-r35.3.1
 FROM ${BASE_IMAGE}
 
-ENV DEEPSTREAM_URL = 'https://api.ngc.nvidia.com/v2/resources/org/nvidia/deepstream/6.3/files?redirect=true&path=deepstream_sdk_v6.3.0_jetson.tbz2'
-ENV DEEPSTREAM_TAR = 'deepstream_sdk_v6.3.0_jetson.tbz2'
-
-RUN wget --quiet --show-progress --progress=bar:force:noscroll --no-check-certificate ${DEEPSTREAM_URL} -O ${DEEPSTREAM_TAR} && \
-    tar -xvf ${DEEPSTREAM_TAR} -C / && \
-    rm ${DEEPSTREAM_TAR}
+RUN wget --quiet --show-progress --progress=bar:force:noscroll --no-check-certificate 'https://api.ngc.nvidia.com/v2/resources/org/nvidia/deepstream/6.3/files?redirect=true&path=deepstream_sdk_v6.3.0_jetson.tbz2' -O 'deepstream_sdk_v6.3.0_jetson.tbz2' && \
+    tar -xvf 'deepstream_sdk_v6.3.0_jetson.tbz2' -C / && \
+    rm 'deepstream_sdk_v6.3.0_jetson.tbz2'
     
 
 # https://github.com/dusty-nv/jetson-containers/issues/405#issue-2155595703
@@ -26,7 +23,7 @@ RUN git clone https://github.com/edenhill/librdkafka && \
     cd librdkafka && \
     git reset --hard 7101c2310341ab3f4675fc565f64f0967e135a6a && \
     ./configure && \
-    make -j$(nproc) && \
+    make -j2 && \
     make install && \
     cd ../ && \
     rm -rf librdkafka
@@ -37,6 +34,16 @@ RUN cp /usr/local/lib/librdkafka* /opt/nvidia/deepstream/deepstream-*/lib
 # libyaml-cpp.so.0.6: cannot open shared object file
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        libssl1.1 \
+        libgstreamer1.0-0 \
+        gstreamer1.0-tools \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-plugins-bad \
+        gstreamer1.0-plugins-ugly \
+        gstreamer1.0-libav \
+        libgstreamer-plugins-base1.0-dev \
+        libgstrtspserver-1.0-0 \
+        libjansson4 \
 		libyaml-cpp-dev \
 		libcairo2-dev \
     && rm -rf /var/lib/apt/lists/* \
@@ -51,21 +58,17 @@ RUN cd /opt/nvidia/deepstream/deepstream-* && \
     
 # build pyds bindings
 # https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/tree/master/bindings
-ENV PYDS_VERSION = 'v1.1.8'
-ENV PYTHON_VERSION_MAJOR = '3'
-ENV PYTHON_VERSION_MINOR = '8'
-
 RUN cd /opt/nvidia/deepstream/deepstream/sources && \
-    git clone --branch ${PYDS_VERSION} --recursive --depth=1 https://github.com/NVIDIA-AI-IOT/deepstream_python_apps && \
+    git clone --branch 'v1.1.8' --recursive --depth=1 https://github.com/NVIDIA-AI-IOT/deepstream_python_apps && \
     cd deepstream_python_apps/bindings && \
     mkdir build && \
     cd build && \
     cmake ../ \
         -DDS_PATH=/opt/nvidia/deepstream/deepstream \
 	   -DPIP_PLATFORM=linux_aarch64 \
-	   -DPYTHON_MAJOR_VERSION=${PYTHON_VERSION_MAJOR} \
-	   -DPYTHON_MINOR_VERSION=${PYTHON_VERSION_MINOR} && \
-    make -j$(nproc) && \
+	   -DPYTHON_MAJOR_VERSION='3' \
+	   -DPYTHON_MINOR_VERSION='8' && \
+    make -j2 && \
     pip3 install --verbose ./pyds-*-py3-none*.whl
 
 # make sure it loads
