@@ -2,66 +2,71 @@
 # this dockerfile roughly follows the 'Install ROS2 Via Debian Packages' from:
 #   https://index.ros.org/doc/ros2/Installation/Eloquent/Linux-Install-Debians/
 #
-ARG BASE_IMAGE=dustynv/deepstream:r35.3.1
+ARG BASE_IMAGE=dustynv/ros:humble-desktop-l4t-r35.3.1
 FROM ${BASE_IMAGE}
 
-ENV ROS_DISTRO=humble
-ENV ROS_ROOT=/opt/ros/${ROS_DISTRO}
+ENV DEEPSTREAM_URL = 'https://api.ngc.nvidia.com/v2/resources/org/nvidia/deepstream/6.3/files?redirect=true&path=deepstream_sdk_v6.3.0_jetson.tbz2'
+ENV DEEPSTREAM_TAR = 'deepstream_sdk_v6.3.0_jetson.tbz2'
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN wget --quiet --show-progress --progress=bar:force:noscroll --no-check-certificate ${DEEPSTREAM_URL} -O ${DEEPSTREAM_TAR} && \
+    tar -xvf ${DEEPSTREAM_TAR} -C / && \
+    rm ${DEEPSTREAM_TAR}
+    
 
-WORKDIR /workspace
+# https://github.com/dusty-nv/jetson-containers/issues/405#issue-2155595703
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+		python-is-python3 \
+    || rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+    
+    
+# install librdkafka (to enable Kafka protocol adaptor for message broker)
+RUN git clone https://github.com/edenhill/librdkafka && \
+    cd librdkafka && \
+    git reset --hard 7101c2310341ab3f4675fc565f64f0967e135a6a && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../ && \
+    rm -rf librdkafka
+    
+RUN cp /usr/local/lib/librdkafka* /opt/nvidia/deepstream/deepstream-*/lib   
+    
+    
+# libyaml-cpp.so.0.6: cannot open shared object file
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+		libyaml-cpp-dev \
+		libcairo2-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+    
+    
+# install DeepStream
+RUN cd /opt/nvidia/deepstream/deepstream-* && \
+    ./install.sh && \
+    ldconfig
+    
+    
+# build pyds bindings
+# https://github.com/NVIDIA-AI-IOT/deepstream_python_apps/tree/master/bindings
+ENV PYDS_VERSION = 'v1.1.8'
+ENV PYTHON_VERSION_MAJOR = '3'
+ENV PYTHON_VERSION_MINOR = '8'
 
-# install prerequisite
-RUN apt update && \
-    apt purge -y *opencv* && \
-    apt install -y --no-install-recommends \
-        git cmake build-essential \
-        curl wget gnupg \
-        locales lsb-release software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+RUN cd /opt/nvidia/deepstream/deepstream/sources && \
+    git clone --branch ${PYDS_VERSION} --recursive --depth=1 https://github.com/NVIDIA-AI-IOT/deepstream_python_apps && \
+    cd deepstream_python_apps/bindings && \
+    mkdir build && \
+    cd build && \
+    cmake ../ \
+        -DDS_PATH=/opt/nvidia/deepstream/deepstream \
+	   -DPIP_PLATFORM=linux_aarch64 \
+	   -DPYTHON_MAJOR_VERSION=${PYTHON_VERSION_MAJOR} \
+	   -DPYTHON_MINOR_VERSION=${PYTHON_VERSION_MINOR} && \
+    make -j$(nproc) && \
+    pip3 install --verbose ./pyds-*-py3-none*.whl
 
-# change the locale from POSIX to UTF-8
-RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-ENV LANG=en_US.UTF-8
-
-# set Python3 as default
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
-
-# add the ROS deb repo to the apt sources list
-RUN wget -qO - https://isaac.download.nvidia.com/isaac-ros/repos.key | sudo apt-key add - && \
-    echo 'deb https://isaac.download.nvidia.com/isaac-ros/ubuntu/main focal main' | sudo tee -a /etc/apt/sources.list && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu focal main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-
-RUN apt update && \
-    apt install -y --no-install-recommends ros-humble-desktop-full \
-        python3-rosdep python3-colcon-common-extensions \
-    && rm -rf /var/lib/apt/lists/*
-
-# init/update rosdep
-RUN apt update && \
-    cd ${ROS_ROOT} && \
-    rosdep init && \
-    rosdep update && \
-    rm -rf /var/lib/apt/lists/*
-
-# setup entrypoint
-COPY ./packages/ros_entrypoint.sh /ros_entrypoint.sh
-RUN echo 'source ${ROS_ROOT}/setup.bash' >> /root/.bashrc 
-RUN chmod +x /ros_entrypoint.sh
-ENTRYPOINT ["/ros_entrypoint.sh"]
-CMD ["bash"]
-WORKDIR /
-
-# 
-# PyCUDA
-#
-RUN cd /opt && \
-    git clone --branch=main --depth=1 --recursive https://github.com/inducer/pycuda && \
-    cd pycuda && \
-    python3 setup.py --verbose build_ext --inplace bdist_wheel && \
-    cp dist/pycuda*.whl /opt && \
-    rm -rf /opt/pycuda
-RUN pip3 install --no-cache-dir --verbose /opt/pycuda*.whl
-RUN pip3 show pycuda && python3 -c 'import pycuda; print(pycuda.VERSION_TEXT)'
+# make sure it loads
+RUN deepstream-app --version && python3 -c 'import pyds'
